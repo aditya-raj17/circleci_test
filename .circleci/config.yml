@@ -10,7 +10,7 @@ jobs:
           name: "Creating Env file"
           command: |
             echo "Creating .env file for staging environment"
-            cat > .env <<EOF
+            cat > .env \<<EOF
             REALM=prod
             EOF
             echo "Environment file created:"
