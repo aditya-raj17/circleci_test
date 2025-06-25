@@ -9,13 +9,17 @@ jobs:
       - run:
           name: "Creating Env file"
           command: |
-            echo "Creating .env file for staging environment"
-            cat > .env \<<EOF
+            if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+              echo "Creating .env file for production environment"
+              cat > .env \<<EOF
             REALM=prod
             EOF
             echo "Environment file created:"
             cat .env
-
+            else
+              echo "Branch not configured for builds"
+              exit 1
+            fi
       - store_artifacts:
           path: .env
           destination: env-file
