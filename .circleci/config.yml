@@ -4,33 +4,40 @@ jobs:
   build:
     docker:
       - image: ghcr.io/cirruslabs/flutter:3.22.2
-      - image: alpine/git:latest
     steps:
+      - checkout
+
       - run:
           name: "Creating Env file"
           command: |
             if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
               echo "Creating .env file for production environment"
-              cat > .env \<<EOF
-            REALM=${REALM_PRD}
-            EOF
-            echo "Environment file created:"
-            cat .env
+              cat > .env <<EOF
+              REALM=${REALM_PRD}
+              EOF
+              echo "Environment file created:"
+              cat .env
             else
               echo "Branch not configured for builds"
               exit 1
             fi
       - run:
+          name: Clean Flutter Build
+          command: flutter clean
+      - run:
           name: "Install dependencies"
           command: flutter pub get
+
       - run:
           name: "Create flutter build"
           command: |
-            echo "Building AAB for branch: ${CIRCLE_BRANCH}"
+            echo "Building APK for branch: ${CIRCLE_BRANCH}"
             flutter build apk --release
+
       - store_artifacts:
           path: .env
           destination: env-file
+
       - store_artifacts:
           path: build/app/outputs/flutter-apk/app-release.apk
           destination: release-apk
