@@ -12,7 +12,7 @@ jobs:
             if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
               echo "Creating .env file for production environment"
               cat > .env \<<EOF
-            REALM=prod
+            REALM=${REALM_PRD}
             EOF
             echo "Environment file created:"
             cat .env
