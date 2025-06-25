@@ -57,6 +57,8 @@ class _MyHomePageState extends State<MyHomePage> {
             Text(
               'Realm is : ${Envhelper().realm}',
             ),
+            if(Envhelper().realm == 'prod')
+            const Text('Realm is prod'),
             Text(
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
