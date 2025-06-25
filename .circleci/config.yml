@@ -20,9 +20,20 @@ jobs:
               echo "Branch not configured for builds"
               exit 1
             fi
+      - run:
+          name: "Install dependencies"
+          command: flutter pub get
+      - run:
+          name: "Create flutter build"
+          command: |
+          echo "Building AAB for branch: ${CIRCLE_BRANCH}"
+            flutter build apk --release
       - store_artifacts:
           path: .env
           destination: env-file
+      - store_artifacts:
+          path: build/app/outputs/flutter-apk/app-release.apk
+          destination: release-apk
 
 workflows:
   say-hello-workflow:
