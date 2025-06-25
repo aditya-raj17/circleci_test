@@ -26,7 +26,7 @@ jobs:
       - run:
           name: "Create flutter build"
           command: |
-          echo "Building AAB for branch: ${CIRCLE_BRANCH}"
+            echo "Building AAB for branch: ${CIRCLE_BRANCH}"
             flutter build apk --release
       - store_artifacts:
           path: .env
