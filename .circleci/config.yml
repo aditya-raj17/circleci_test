@@ -31,8 +31,8 @@ jobs:
       - run:
           name: "Create flutter build"
           command: |
-            echo "Building APK for branch: ${CIRCLE_BRANCH}"
-            flutter build apk --release
+            echo "Building App Bundle for branch: ${CIRCLE_BRANCH}"
+            flutter build appbundle --target-platform android-arm,android-arm64
 
       - store_artifacts:
           path: .env
