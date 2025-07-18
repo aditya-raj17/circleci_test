@@ -36,6 +36,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6
   flutter_dotenv: ^5.2.1
+  shorebird_code_push: ^1.1.6
 
 dev_dependencies:
   flutter_test:
@@ -60,3 +61,4 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - shorebird.yaml

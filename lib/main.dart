@@ -1,4 +1,5 @@
 import 'package:circleci_test/env_helper.dart';
+import 'package:circleci_test/update_service.dart';
 import 'package:flutter/material.dart';
 
 void main() async {
@@ -38,6 +39,12 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _counter++;
     });
+  }
+
+  @override
+  void initState() {
+    UpdateService().checkForUpdates(context);
+    super.initState();
   }
 
   @override
