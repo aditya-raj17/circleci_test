@@ -4,7 +4,7 @@ jobs:
   build:
     docker:
       - image: ghcr.io/cirruslabs/flutter:3.24.2
-      
+
     steps:
       - checkout
 
@@ -32,7 +32,7 @@ jobs:
       - run:
           name: Install Shorebird CLI
           command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://get.shorebird.dev | bash
+            curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
             echo 'export PATH="$HOME/.shorebird/bin:$PATH"' >> $BASH_ENV
             source $BASH_ENV
 
