@@ -4,6 +4,7 @@ jobs:
   build:
     docker:
       - image: adityablitz/flutter-3.24.2:latest
+        platform: linux/amd64
 
     steps:
       - checkout
