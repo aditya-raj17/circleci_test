@@ -23,6 +23,12 @@ jobs:
               echo "Branch not configured for builds"
               exit 1
             fi
+
+      - restore_cache:
+        keys:
+          - flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
+          - gradle-cache-v1
+
       - run:
           name: Clean Flutter Build
           command: flutter clean
@@ -30,39 +36,45 @@ jobs:
           name: "Install dependencies"
           command: flutter pub get
 
-      - run:
-          name: Install Shorebird CLI
-          command: |
-            curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
-            echo 'export PATH="$HOME/.shorebird/bin:$PATH"' >> $BASH_ENV
-            source $BASH_ENV
-
-      - run:
-          name: Get Shorebird token
-          command: export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
-      
-      - run:
-          name: Shorebird Release or Patch
-          command: |
-            #!/bin/bash
-            APP_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d"+" -f1)
-            RELEASES=$(shorebird releases list android)
-
-            echo "Looking for version $APP_VERSION in existing releases..."
-            if echo "$RELEASES" | grep -q "$APP_VERSION"; then
-              echo "Patch time..."
-              shorebird patch android
-            else
-              echo "First release!"
-              shorebird release android --flutter-version=3.24.2
-            fi
+      # - run:
+      #     name: Install Shorebird CLI
+      #     command: |
+      #       curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+      #       echo 'export PATH="$HOME/.shorebird/bin:$PATH"' >> $BASH_ENV
+      #       source $BASH_ENV
 
       # - run:
-      #     name: "Create flutter build"
+      #     name: Get Shorebird token
+      #     command: export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
+      
+      # - run:
+      #     name: Shorebird Release or Patch
       #     command: |
-      #       echo "Building App Bundle for branch: ${CIRCLE_BRANCH}"
-      #       flutter build appbundle --target-platform android-arm,android-arm64
+      #       #!/bin/bash
+      #       APP_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d"+" -f1)
+      #       RELEASES=$(shorebird releases list android)
 
+      #       echo "Looking for version $APP_VERSION in existing releases..."
+      #       if echo "$RELEASES" | grep -q "$APP_VERSION"; then
+      #         echo "Patch time..."
+      #         shorebird patch android
+      #       else
+      #         echo "First release!"
+      #         shorebird release android --flutter-version=3.24.2
+      #       fi
+
+      - run:
+          name: "Create flutter build"
+          command: |
+            echo "Building App Bundle for branch: ${CIRCLE_BRANCH}"
+            flutter build appbundle --target-platform android-arm,android-arm64
+
+      - save_cache:
+        paths:
+          - ~/.pub-cache
+          - ~/.gradle
+        key: flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
+        
       - store_artifacts:
           path: .env
           destination: env-file
