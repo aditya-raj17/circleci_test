@@ -25,9 +25,9 @@ jobs:
             fi
 
       - restore_cache:
-        keys:
-          - flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
-          - gradle-cache-v1
+          keys:
+            - flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
+            - gradle-cache-v1
 
       - run:
           name: Clean Flutter Build
@@ -68,13 +68,13 @@ jobs:
           command: |
             echo "Building App Bundle for branch: ${CIRCLE_BRANCH}"
             flutter build appbundle --target-platform android-arm,android-arm64
-
+            
       - save_cache:
-        paths:
-          - ~/.pub-cache
-          - ~/.gradle
-        key: flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
-        
+          paths:
+            - ~/.pub-cache
+            - ~/.gradle
+          key: flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
+
       - store_artifacts:
           path: .env
           destination: env-file
