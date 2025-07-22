@@ -7,18 +7,19 @@ jobs:
 
     steps:
       - checkout
+      
+      # Restore combined cache for Flutter and Gradle dependencies
       - restore_cache:
           keys:
-            - flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
-            - flutter-pub-cache-v1-
-            - gradle-cache-v1-
+            - flutter-deps-v1-{{ checksum "pubspec.lock" }}
+            - flutter-deps-v1-
             
       - run:
           name: "Creating Env file"
           command: |
             if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
               echo "Creating .env file for production environment"
-              cat > .env \<< EOF
+              cat > .env << EOF
             REALM=${REALM_PRD}
             EOF
               echo "Environment file created:"
@@ -31,21 +32,64 @@ jobs:
       - run:
           name: Clean Flutter Build
           command: flutter clean
+          
       - run:
           name: "Install dependencies"
           command: flutter pub get
 
       - run:
-          name: "Create flutter build"
+          name: Install Shorebird CLI
           command: |
-            echo "Building App Bundle for branch: ${CIRCLE_BRANCH}"
-            flutter build appbundle --target-platform android-arm,android-arm64
+            if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+              echo "Installing Shorebird CLI for production branch..."
+              curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+              echo 'export PATH="$HOME/.shorebird/bin:$PATH"' >> $BASH_ENV
+              source $BASH_ENV
+            else
+              echo "Skipping Shorebird installation for non-production branch"
+            fi
 
+      - run:
+          name: Set Shorebird token
+          command: |
+            if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+              export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
+              echo "Shorebird token set for production build"
+            fi
+      
+      - run:
+          name: "Create build (Flutter or Shorebird)"
+          command: |
+            if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+              echo "Production branch detected - using Shorebird build"
+              
+              # Get current app version from pubspec.yaml
+              APP_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d"+" -f1)
+              echo "Current app version: $APP_VERSION"
+              
+              # Check existing Shorebird releases
+              echo "Checking existing Shorebird releases..."
+              RELEASES=$(shorebird releases list android --json 2>/dev/null || echo "[]")
+              
+              # Check if this version already exists
+              if echo "$RELEASES" | grep -q "\"version\":\"$APP_VERSION\""; then
+                echo "Version $APP_VERSION already exists - creating patch..."
+                shorebird patch android
+              else
+                echo "Version $APP_VERSION not found - creating new release..."
+                shorebird release android --flutter-version=3.24.2
+              fi
+            else
+              echo "Non-production branch - using standard Flutter build"
+              flutter build appbundle --target-platform android-arm,android-arm64
+            fi
+
+      # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
           paths:
             - ~/.pub-cache
             - ~/.gradle
-          key: flutter-pub-cache-v1-{{ checksum "pubspec.lock" }}
+          key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
 
       - store_artifacts:
           path: .env
@@ -54,6 +98,7 @@ jobs:
       - store_artifacts:
           path: build/app/outputs/bundle/release/app-release.aab
           destination: release-aab
+          # Note: For Shorebird builds, artifacts may be in different locations
 
 workflows:
   say-hello-workflow:
