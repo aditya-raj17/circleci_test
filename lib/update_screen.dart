@@ -13,87 +13,133 @@ class UpdateScreen extends StatefulWidget {
 class _UpdateScreenState extends State<UpdateScreen> {
   bool isDownloaded = false;
   bool isDownloading = false;
-  late final Timer _timer;
-  late int currentPatch;
-  late int nextPatch;
+  late Timer _timer;
+  int? currentPatch;
+  int? nextPatch;
 
   @override
   void initState() {
-    getPatchNumners();
     super.initState();
+    _loadPatchNumbers();
   }
-  void getPatchNumners() async {
+
+  Future<void> _loadPatchNumbers() async {
     currentPatch = await UpdateService.currentPatchNumber();
     nextPatch = await UpdateService.nextPatchNumber();
+    if (mounted) setState(() {});
   }
 
   void _startDownloadStatusTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       bool downloaded = await UpdateService().isDownloadComplete();
       if (downloaded) {
+        _timer.cancel();
+        await _loadPatchNumbers();
         setState(() {
           isDownloaded = true;
           isDownloading = false;
-          getPatchNumners();
         });
-      }
-      if (downloaded) {
-        _timer.cancel();
       }
     });
   }
 
   @override
   void dispose() {
-    if (_timer.isActive) {
-      _timer.cancel();
-    }
+    _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'New Patch Available! Please update your app.',
-                style: TextStyle(fontSize: 24),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              Text("Current Patch: $currentPatch"),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                child: const Text("Download Patch"),
-                onPressed: () async {
-                  setState(() {
-                    isDownloading = true;
-                  });
-                  await UpdateService().downloadUpdate();
-                  _startDownloadStatusTimer();
-                },
-              ),
-              if (isDownloading) const CircularProgressIndicator(),
-              if (isDownloaded)
-                Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    const Text("Download completed!!"),
-                    Text("New Patch : $nextPatch"),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.system_update, size: 64, color: Colors.blue),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Update Available!',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'A new patch is ready to be downloaded.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 24),
+      
+                  // Patch numbers
+                  if (currentPatch != null)
+                    Text(
+                      "Current Patch: $currentPatch",
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  const SizedBox(height: 16),
+      
+                  // Download button
+                  if (!isDownloaded)
+                    ElevatedButton(
+                      onPressed: isDownloading
+                          ? null
+                          : () async {
+                              setState(() {
+                                isDownloading = true;
+                              });
+                              await UpdateService().downloadUpdate();
+                              _startDownloadStatusTimer();
+                            },
+                      child: isDownloading ? const Text("Downloading...") : const Text("Download Patch"),
+                    ),
+      
+                  if (isDownloading) ...[
+                    const SizedBox(height: 16),
+                    const CircularProgressIndicator(),
+                  ],
+      
+                  if (isDownloaded) ...[
+                    const SizedBox(height: 24),
+                    const Text(
+                      "Patch downloaded successfully!",
+                      style: TextStyle(color: Colors.green, fontSize: 16),
+                    ),
+                    if (nextPatch != null)
+                      Text(
+                        "New Patch: $nextPatch",
+                        style: const TextStyle(fontSize: 16),
+                      ),
                     const SizedBox(height: 20),
                     ElevatedButton(
-                      child: const Text("Restart App to apply"),
                       onPressed: () {
                         UpdateService().restartApp();
                       },
+                      child: const Text("Restart App to Apply"),
                     ),
                   ],
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

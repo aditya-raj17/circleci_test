@@ -43,8 +43,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void initState() {
-    UpdateService().checkForUpdates(context);
+    checkForUpdates();
     super.initState();
+  }
+
+  void checkForUpdates() async {
+    await UpdateService().checkForUpdates(context);
   }
 
   @override

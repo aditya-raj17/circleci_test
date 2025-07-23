@@ -18,13 +18,13 @@ class UpdateService {
 
   Future<void> checkForUpdates(BuildContext context) async {
     // Logic to check for updates
-    int? current = await currentPatchNumber();
-    debugPrint("current patch number: $current");
-    final bool isNewPatchAvailable =
+    int currentLodedPatch = await currentPatchNumber();
+    debugPrint("current patch number: $currentLodedPatch");
+    final bool isNewPatchAvailableForDownload =
         await ShorebirdCodePush().isNewPatchAvailableForDownload();
-
-    if (isNewPatchAvailable) {
-      debugPrint("New patch available for download.");
+    final bool isNewPatchReadyToInstall = await ShorebirdCodePush().isNewPatchReadyToInstall();
+    if (isNewPatchAvailableForDownload || isNewPatchReadyToInstall) {
+      debugPrint("New patch available!");
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const UpdateScreen()),
