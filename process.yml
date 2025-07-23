@@ -1,0 +1,68 @@
+version: 2
+jobs:
+  build:
+    docker:
+    - image: adityablitz/flutter-3.24.2:latest
+    steps:
+    - checkout
+    - restore_cache:
+        keys:
+        - flutter-deps-v1-{{ checksum "pubspec.lock" }}
+        - flutter-deps-v1-
+    - run:
+        name: Creating Env file
+        command: |
+          if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+            echo "Creating .env file for production environment"
+            cat > .env << EOF
+          REALM=${REALM_PRD}
+          EOF
+            echo "Environment file created:"
+            cat .env
+          else
+            echo "Branch not configured for builds"
+            exit 1
+          fi
+    - run:
+        name: Clean Flutter Build
+        command: flutter clean
+    - run:
+        name: Install dependencies
+        command: flutter pub get
+    - run:
+        name: Install Shorebird CLI
+        command: |
+          if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+            echo "Installing Shorebird CLI for production branch..."
+            curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+            echo 'export PATH="$HOME/.shorebird/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+          else
+            echo "Skipping Shorebird installation for non-production branch"
+          fi
+    - run:
+        name: Set Shorebird token
+        command: |
+          if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
+            export SHOREBIRD_TOKEN="$SHOREBIRD_TOKEN"
+            echo "Shorebird token set for production build"
+          fi
+    - run:
+        name: Create build (Flutter or Shorebird)
+        command: "if [[ \"${CIRCLE_BRANCH}\" == \"main\" ]]; then\n  echo \"Production branch detected - using Shorebird build\"\n  \n  # Get current app version from pubspec.yaml\n  APP_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d\"+\" -f1)\n  echo \"Current app version: $APP_VERSION\"\n  \n  # Check existing Shorebird releases\n  echo \"Checking existing Shorebird releases...\"\n  RELEASES=$(shorebird releases list android --json 2>/dev/null || echo \"[]\")\n  \n  # Check if this version already exists\n  if echo \"$RELEASES\" | grep -q \"\\\"version\\\":\\\"$APP_VERSION\\\"\"; then\n    echo \"Version $APP_VERSION already exists - creating patch...\"\n    shorebird patch android\n  else\n    echo \"Version $APP_VERSION not found - creating new release...\"\n    shorebird release android --flutter-version=3.24.2\n  fi\nelse\n  echo \"Non-production branch - using standard Flutter build\"\n  flutter build appbundle --target-platform android-arm,android-arm64\nfi\n"
+    - save_cache:
+        paths:
+        - ~/.pub-cache
+        - ~/.gradle
+        key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
+    - store_artifacts:
+        path: .env
+        destination: env-file
+    - store_artifacts:
+        path: build/app/outputs/bundle/release/app-release.aab
+        destination: release-aab
+workflows:
+  say-hello-workflow:
+    jobs:
+    - build
+  version: 2
