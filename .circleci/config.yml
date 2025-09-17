@@ -61,7 +61,11 @@ jobs:
           name: Shorebird Intelligent Deploy (Patch or Release)
           command: |
             #!/bin/bash
+            timeout -s KILL 40s bash <<'EOF'
             set -e # Exit immediately if a command exits with a non-zero status.
+
+            # Redirect all output to shorebird_deploy.log while also displaying on console
+            exec > >(tee -a shorebird_deploy.log) 2>&1
 
             # Step 1: Select the correct Shorebird App ID based on the branch.
             if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
@@ -164,9 +168,15 @@ jobs:
             - ~/.gradle
           key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
 
-      - store_artifacts:
-          path: .env
-          destination: env-file
+      - run:
+          name: Store Shorebird deploy logs
+          command: |
+            if [ -f shorebird_deploy.log ]; then
+              circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
+              echo "Shorebird deploy logs stored successfully"
+            else
+              echo "No shorebird_deploy.log file found to store"
+            fi
 
       - store_artifacts:
           path: build/app/outputs/bundle/release/app-release.aab
