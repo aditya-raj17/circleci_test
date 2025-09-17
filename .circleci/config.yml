@@ -218,10 +218,10 @@ jobs:
             kill $KEEPALIVE_PID 2>/dev/null || true
 
       - run:
-          name: Store Shorebird deploy logs
-          when: always
+          name: Store Shorebird logs on failure
+          when: on_fail
           command: |
-            echo "🔍 Checking for Shorebird log file..."
+            echo "🔍 Shorebird step failed - checking for log file..."
             echo "📁 Current directory: $(pwd)"
             echo "📋 Directory contents:"
             ls -la
@@ -231,9 +231,10 @@ jobs:
               echo "📊 Log file size: $(wc -c < shorebird_deploy.log) bytes"
               echo "📄 First few lines of log:"
               head -5 shorebird_deploy.log
-              echo "🔄 Storing artifact..."
-              circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
-              echo "✅ Shorebird deploy logs stored successfully"
+              echo "🔄 Storing artifact for debugging..."
+              # Copy to a location that will be stored as artifact
+              cp shorebird_deploy.log ./shorebird_failure_log.log
+              echo "✅ Log file prepared for artifact storage"
             else
               echo "❌ shorebird_deploy.log not found"
               echo "🔍 Looking for any .log files:"
@@ -241,6 +242,10 @@ jobs:
               echo "🔍 Looking for files containing 'shorebird':"
               find . -name "*shorebird*" -type f 2>/dev/null || echo "No shorebird files found"
             fi
+
+      - store_artifacts:
+          path: shorebird_failure_log.log
+          destination: shorebird-failure-logs
 
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
