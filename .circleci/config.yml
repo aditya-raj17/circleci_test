@@ -173,6 +173,7 @@ jobs:
 
       - run:
           name: Printing logs
+          when: on_fail
           command: |
             cat shorebird_deploy.log
 
