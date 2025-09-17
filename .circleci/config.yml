@@ -67,6 +67,11 @@ jobs:
             # Create log file for Shorebird operations
             SHOREBIRD_LOG="shorebird_deploy.log"
             echo "🚀 Starting Shorebird Intelligent Deploy - $(date)" | tee -a "$SHOREBIRD_LOG"
+            
+            # Deliberately exit to test artifact saving
+            echo "🧪 Deliberately exiting for testing artifact saving..." | tee -a "$SHOREBIRD_LOG"
+            echo "📝 Log file created at: $(pwd)/$SHOREBIRD_LOG" | tee -a "$SHOREBIRD_LOG"
+            echo "📊 Log file size: $(wc -c < "$SHOREBIRD_LOG" 2>/dev/null || echo '0') bytes" | tee -a "$SHOREBIRD_LOG"
             exit 1
             
             # Set up 60-second timeout mechanism
@@ -215,7 +220,26 @@ jobs:
       - run:
           name: Store Shorebird deploy logs
           command: |
-            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
+            echo "🔍 Checking for Shorebird log file..."
+            echo "📁 Current directory: $(pwd)"
+            echo "📋 Directory contents:"
+            ls -la
+            
+            if [ -f "shorebird_deploy.log" ]; then
+              echo "✅ Found shorebird_deploy.log"
+              echo "📊 Log file size: $(wc -c < shorebird_deploy.log) bytes"
+              echo "📄 First few lines of log:"
+              head -5 shorebird_deploy.log
+              echo "🔄 Storing artifact..."
+              circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
+              echo "✅ Shorebird deploy logs stored successfully"
+            else
+              echo "❌ shorebird_deploy.log not found"
+              echo "🔍 Looking for any .log files:"
+              find . -name "*.log" -type f 2>/dev/null || echo "No .log files found"
+              echo "🔍 Looking for files containing 'shorebird':"
+              find . -name "*shorebird*" -type f 2>/dev/null || echo "No shorebird files found"
+            fi
 
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
