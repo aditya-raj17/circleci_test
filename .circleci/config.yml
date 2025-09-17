@@ -172,9 +172,9 @@ jobs:
             kill $KEEPALIVE_PID 2>/dev/null || true
 
       - run:
-        name: Printing logs
-        command: |
-          cat shorebird_deploy.log
+          name: Printing logs
+          command: |
+            cat shorebird_deploy.log
 
       # - run:
       #     name: Store Shorebird artifacts on failure
