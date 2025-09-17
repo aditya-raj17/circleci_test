@@ -172,9 +172,14 @@ jobs:
             kill $KEEPALIVE_PID 2>/dev/null || true
 
       - run:
-          name: Store Shorebird artifacts on failure
-          command: |
-            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
+        name: Printing logs
+        command: |
+          cat shorebird_deploy.log
+
+      # - run:
+      #     name: Store Shorebird artifacts on failure
+      #     command: |
+      #       circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
 
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
@@ -188,7 +193,6 @@ jobs:
       - store_artifacts:
           path: build/app/outputs/bundle/release/app-release.aab
           destination: release-aab
-          when: always
           # Note: For Shorebird builds, artifacts may be in different locations
 
 workflows:
