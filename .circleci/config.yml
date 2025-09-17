@@ -219,6 +219,7 @@ jobs:
 
       - run:
           name: Store Shorebird deploy logs
+          when: always
           command: |
             echo "🔍 Checking for Shorebird log file..."
             echo "📁 Current directory: $(pwd)"
@@ -247,11 +248,13 @@ jobs:
             - ~/.pub-cache
             - ~/.gradle
           key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
+          when: always
 
 
       - store_artifacts:
           path: build/app/outputs/bundle/release/app-release.aab
           destination: release-aab
+          when: always
           # Note: For Shorebird builds, artifacts may be in different locations
 
 workflows:
