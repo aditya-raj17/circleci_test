@@ -67,6 +67,7 @@ jobs:
             # Create log file for Shorebird operations
             SHOREBIRD_LOG="shorebird_deploy.log"
             echo "🚀 Starting Shorebird Intelligent Deploy - $(date)" | tee -a "$SHOREBIRD_LOG"
+            exit 1
             
             # Set up 60-second timeout mechanism
             BUILD_START_TIME=$(date +%s)
@@ -75,7 +76,11 @@ jobs:
               if [ $BUILD_DURATION -gt 60 ]; then
                 echo "❌ ERROR: Shorebird build timed out after 60 seconds." | tee -a "$SHOREBIRD_LOG"
                 echo "🕐 Build duration: ${BUILD_DURATION} seconds" | tee -a "$SHOREBIRD_LOG"
-                kill $KEEPALIVE_PID 2>/dev/null || true
+                echo "💀 Killing entire bash process due to timeout" | tee -a "$SHOREBIRD_LOG"
+                # Kill the entire process group (including the main bash process)
+                kill -TERM -$$ 2>/dev/null || true
+                sleep 2
+                kill -KILL -$$ 2>/dev/null || true
                 exit 1
               fi
               echo "⏳ Still working... $(date +%H:%M:%S) (${BUILD_DURATION}s elapsed)" | tee -a "$SHOREBIRD_LOG"
@@ -207,6 +212,11 @@ jobs:
             # Clean up keepalive process
             kill $KEEPALIVE_PID 2>/dev/null || true
 
+      - run:
+          name: Store Shorebird deploy logs
+          command: |
+            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
+
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
           paths:
@@ -214,10 +224,6 @@ jobs:
             - ~/.gradle
           key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
 
-      - run:
-          name: Store Shorebird deploy logs
-          command: |
-            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
 
       - store_artifacts:
           path: build/app/outputs/bundle/release/app-release.aab
