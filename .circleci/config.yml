@@ -59,33 +59,40 @@ jobs:
       
       - run:
           name: Shorebird Intelligent Deploy (Patch or Release)
+          no_output_timeout: 20m
           command: |
             #!/bin/bash
             set -e # Exit immediately if a command exits with a non-zero status.
-            BUID_START_TIME=$(date +%s)
+            
+            # Create log file for Shorebird operations
+            SHOREBIRD_LOG="shorebird_deploy.log"
+            echo "🚀 Starting Shorebird Intelligent Deploy - $(date)" | tee -a "$SHOREBIRD_LOG"
+            
+            # Set up 60-second timeout mechanism
+            BUILD_START_TIME=$(date +%s)
             (while true; do 
-              BUILD_DURATION=$(( $(date +%s) - BUID_START_TIME ))
-              if [ $BUILD_DURATION -gt 40 ]; then
-                echo "❌ ERROR: Shorebird build timed out after 40 seconds." | tee -a shorebird_deploy.log
-                kill $KEEPALIVE_PID
+              BUILD_DURATION=$(( $(date +%s) - BUILD_START_TIME ))
+              if [ $BUILD_DURATION -gt 60 ]; then
+                echo "❌ ERROR: Shorebird build timed out after 60 seconds." | tee -a "$SHOREBIRD_LOG"
+                echo "🕐 Build duration: ${BUILD_DURATION} seconds" | tee -a "$SHOREBIRD_LOG"
+                kill $KEEPALIVE_PID 2>/dev/null || true
                 exit 1
               fi
-              echo "⏳ Still working... $(date +%H:%M:%S)" | tee -a shorebird_deploy.log
+              echo "⏳ Still working... $(date +%H:%M:%S) (${BUILD_DURATION}s elapsed)" | tee -a "$SHOREBIRD_LOG"
               # Simplified resource monitoring (less overhead)
               echo "📊 Load: $(cat /proc/loadavg | cut -d' ' -f1-3 2>/dev/null || echo 'N/A')" | tee -a "$SHOREBIRD_LOG"
-              sleep 90
+              sleep 10
             done) &
             KEEPALIVE_PID=$!
-
-            # Redirect all output to shorebird_deploy.log while also displaying on console
-            exec > >(tee -a shorebird_deploy.log) 2>&1
 
             # Step 1: Select the correct Shorebird App ID based on the branch.
             if [[ "${CIRCLE_BRANCH}" == "main" ]]; then
               SHOREBIRD_APP_ID=$SHOREBIRD_APP_ID_PROD
-            elif [[ "${CIRCLE_BRANCH}" == "stag-main" || "${CIRCLE_BRANCH}" == "pre-prod-main" ]]; then
+            elif [[ "${CIRCLE_BRANCH}" == "pre-prod-main" ]]; then
+              SHOREBIRD_APP_ID=$SHOREBIRD_APP_ID_PRE_PROD
+            elif [[ "${CIRCLE_BRANCH}" == "stag-main" ]]; then
               SHOREBIRD_APP_ID=$SHOREBIRD_APP_ID_STAG
-            else
+            else 
               SHOREBIRD_APP_ID=$SHOREBIRD_APP_ID_DEV
             fi
             
@@ -94,85 +101,111 @@ jobs:
               exit 1
             fi
             
-            echo "🎯 Using Shorebird App ID: ${SHOREBIRD_APP_ID} for branch ${CIRCLE_BRANCH}"
+            echo "🎯 Using Shorebird App ID: ${SHOREBIRD_APP_ID} for branch ${CIRCLE_BRANCH}" | tee -a "$SHOREBIRD_LOG"
             echo "app_id: $SHOREBIRD_APP_ID" > shorebird.yaml
             echo "auto_update: false" >> shorebird.yaml
-            echo "Generated shorebird.yaml:"
-            cat shorebird.yaml
+            echo "Generated shorebird.yaml:" | tee -a "$SHOREBIRD_LOG"
+            cat shorebird.yaml | tee -a "$SHOREBIRD_LOG"
 
             # Step 2: Get version from pubspec.yaml
-            VERSION=$(grep 'version:' pubspec.yaml | awk '{print $2}')
-            echo "🔎 Current app version is $VERSION"
+            VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+            echo "export VERSION='$VERSION'" >> $BASH_ENV
+            echo "🔎 Current app version is $VERSION" | tee -a "$SHOREBIRD_LOG"
+            
+            # Network connectivity check
+            echo "🌐 Checking network connectivity..." | tee -a "$SHOREBIRD_LOG"
+            curl -s --connect-timeout 5 https://api.shorebird.dev/health > /dev/null && echo "✅ Shorebird API reachable" | tee -a "$SHOREBIRD_LOG" || echo "⚠️ Shorebird API unreachable" | tee -a "$SHOREBIRD_LOG"
 
             # Step 3: Always attempt to patch first.
-            echo -e "\n⏳ Attempting to patch release $VERSION..."
-            PATCH_OUTPUT=$(shorebird patch android --release-version="$VERSION" --no-confirm || true)
+            echo -e "\n⏳ Attempting to patch release $VERSION..." | tee -a "$SHOREBIRD_LOG"
+            echo "🕐 Patch start time: $(date)" | tee -a "$SHOREBIRD_LOG"
+            PATCH_START_TIME=$(date +%s)
+            PATCH_OUTPUT=$(shorebird patch android --release-version="$VERSION" --no-confirm 2>&1 | tee -a "$SHOREBIRD_LOG" || true)
+            PATCH_END_TIME=$(date +%s)
+            PATCH_DURATION=$((PATCH_END_TIME - PATCH_START_TIME))
+            echo "⏱️ Patch attempt took: ${PATCH_DURATION} seconds" | tee -a "$SHOREBIRD_LOG"
 
             # Step 4: Analyze the patch command's output
             if echo "$PATCH_OUTPUT" | grep -q "✅ Published Patch"; then
               # CASE 1: Patch successful. Job is done.
-              echo "✅ Successfully published patch for version $VERSION."
-              echo "patch" > /tmp/deployment_type.txt # Create flag file for Slack notification
+              PATCH_NUMBER=$(echo "$PATCH_OUTPUT" | grep -o "✅ Published Patch [0-9]*" | grep -o "[0-9]*" || echo "")
+              echo "export PATCH_NUMBER='$PATCH_NUMBER'" >> $BASH_ENV
+              echo "✅ Successfully published patch $PATCH_NUMBER for version $VERSION." | tee -a "$SHOREBIRD_LOG"
+              echo "export DEPLOYMENT_TYPE=1" >> $BASH_ENV
+              echo "🎉 Shorebird deployment completed successfully - $(date)" | tee -a "$SHOREBIRD_LOG"
               exit 0
 
             elif echo "$PATCH_OUTPUT" | grep -q "Release not found"; then
               # CASE 2: Release does not exist. Attempt to create it.
-              echo -e "\nℹ️ No existing release found for $VERSION. Attempting to create a new release..."
-              RELEASE_OUTPUT=$(shorebird release android --flutter-version=3.24.2 --no-confirm || true)
+              echo -e "\nℹ️ No existing release found for $VERSION. Attempting to create a new release..." | tee -a "$SHOREBIRD_LOG"
+              echo "🕐 Release start time: $(date)" | tee -a "$SHOREBIRD_LOG"
+              RELEASE_START_TIME=$(date +%s)
+              RELEASE_OUTPUT=$(shorebird release android --flutter-version=3.24.2 --no-confirm 2>&1 | tee -a "$SHOREBIRD_LOG" || true)
+              RELEASE_END_TIME=$(date +%s)
+              RELEASE_DURATION=$((RELEASE_END_TIME - RELEASE_START_TIME))
+              echo "⏱️ Release creation took: ${RELEASE_DURATION} seconds" | tee -a "$SHOREBIRD_LOG"
 
               # Step 5: Analyze the release command's output
               if echo "$RELEASE_OUTPUT" | grep -q "✅ Published Release"; then
                 # CASE 2a: Release successful. Trigger Fastlane deployment.
-                echo "✅ Successfully published new release for version $VERSION."
-                # echo "🚀 Preparing to upload AAB to Play Store..."
-                # echo "release" > /tmp/deployment_type.txt # Create flag file for Slack notification
+                echo "✅ Successfully published new release for version $VERSION." | tee -a "$SHOREBIRD_LOG"
+                echo "🚀 Preparing to upload AAB to Play Store..." | tee -a "$SHOREBIRD_LOG"
+                echo "export DEPLOYMENT_TYPE=0" >> $BASH_ENV
 
-                # # --- START: Conditional Fastlane Deployment ---
-                # mkdir -p fastlane
-                # if [[ "${CIRCLE_BRANCH}" == "prod-main" ]]; then
-                #   echo "Configuring Fastlane for Production deployment"
-                #   printf '%s\n' \
-                #     "default_platform(:android)" \
-                #     "" \
-                #     "platform :android do" \
-                #     "  desc 'Deploy to Google Play Store Production'" \
-                #     "  lane :production do" \
-                #     "    upload_to_play_store(json_key: 'google-play-key.json', package_name: ENV['ANDROID_PACKAGE_NAME'], aab: 'build/app/outputs/bundle/release/app-release.aab', track: 'production', release_status: 'draft', skip_upload_metadata: true, skip_upload_images: true, skip_upload_screenshots: true)" \
-                #     "  end" \
-                #     "end" > fastlane/Fastfile
-                #   fastlane android production
-                # else
-                #   echo "Configuring Fastlane for Internal App Sharing"
-                #   printf '%s\n' \
-                #     "default_platform(:android)" \
-                #     "" \
-                #     "platform :android do" \
-                #     "  desc 'Upload to Internal App Sharing'" \
-                #     "  lane :internal_sharing do" \
-                #     "    result = upload_to_play_store_internal_app_sharing(json_key: 'google-play-key.json', package_name: ENV['ANDROID_PACKAGE_NAME'], aab: 'build/app/outputs/bundle/release/app-release.aab')" \
-                #     "    File.write(\"../sharing_url.txt\", result) if result && result.start_with?('https')" \
-                #     "  end" \
-                #     "end" > fastlane/Fastfile
-                #   fastlane android internal_sharing
-                # fi
-                # # --- END: Conditional Fastlane Deployment ---
-
+                # --- START: Conditional Fastlane Deployment ---
+                mkdir -p fastlane
+                if [[ "${CIRCLE_BRANCH}" == "prod-main" ]]; then
+                  echo "Configuring Fastlane for Production deployment"
+                  printf '%s\n' \
+                    "default_platform(:android)" \
+                    "" \
+                    "platform :android do" \
+                    "  desc 'Deploy to Google Play Store Production'" \
+                    "  lane :production do" \
+                    "    upload_to_play_store(json_key: 'google-play-key.json', package_name: ENV['ANDROID_PACKAGE_NAME'], aab: 'build/app/outputs/bundle/release/app-release.aab', track: 'production', release_status: 'draft', skip_upload_metadata: true, skip_upload_images: true, skip_upload_screenshots: true)" \
+                    "  end" \
+                    "end" > fastlane/Fastfile
+                  fastlane android production
+                else
+                  echo "Configuring Fastlane for Internal App Sharing"
+                  printf '%s\n' \
+                    "default_platform(:android)" \
+                    "" \
+                    "platform :android do" \
+                    "  desc 'Upload to Internal App Sharing'" \
+                    "  lane :internal_sharing do" \
+                    "    result = upload_to_play_store_internal_app_sharing(json_key: 'google-play-key.json', package_name: ENV['ANDROID_PACKAGE_NAME'], aab: 'build/app/outputs/bundle/release/app-release.aab')" \
+                    "    File.write(\"../sharing_url.txt\", result) if result && result.start_with?('https')" \
+                    "  end" \
+                    "end" > fastlane/Fastfile
+                  fastlane android internal_sharing
+                fi
+                # --- END: Conditional Fastlane Deployment ---
+                echo "🎉 Shorebird release completed successfully - $(date)" | tee -a "$SHOREBIRD_LOG"
                 exit 0
-              
               elif echo "$RELEASE_OUTPUT" | grep -q "existing android release for version"; then
-                echo -e "\n❌ ERROR: Shorebird reports an existing release, but patching failed."
-                echo "Please check the Shorebird console or bump your app version."
+                echo -e "\n❌ ERROR: Shorebird reports an existing release, but patching failed." | tee -a "$SHOREBIRD_LOG"
+                echo "Please check the Shorebird console or bump your app version." | tee -a "$SHOREBIRD_LOG"
+                echo "💾 Saving Shorebird log as artifact due to error"
+                kill $KEEPALIVE_PID 2>/dev/null || true
                 exit 1
               else
-                echo -e "\n❌ ERROR: An unexpected error occurred during release creation."
-                echo "$RELEASE_OUTPUT"
+                echo -e "\n❌ ERROR: An unexpected error occurred during release creation." | tee -a "$SHOREBIRD_LOG"
+                echo "$RELEASE_OUTPUT" | tee -a "$SHOREBIRD_LOG"
+                echo "💾 Saving Shorebird log as artifact due to error"
+                kill $KEEPALIVE_PID 2>/dev/null || true
                 exit 1
               fi
             else
-              echo -e "\n❌ ERROR: An unexpected error occurred during patch attempt."
-              echo "$PATCH_OUTPUT"
+              echo -e "\n❌ ERROR: An unexpected error occurred during patch attempt." | tee -a "$SHOREBIRD_LOG"
+              echo "$PATCH_OUTPUT" | tee -a "$SHOREBIRD_LOG"
+              echo "💾 Saving Shorebird log as artifact due to error"
+              kill $KEEPALIVE_PID 2>/dev/null || true
               exit 1
             fi
+            
+            # Clean up keepalive process
+            kill $KEEPALIVE_PID 2>/dev/null || true
 
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
@@ -184,12 +217,7 @@ jobs:
       - run:
           name: Store Shorebird deploy logs
           command: |
-            if [ -f shorebird_deploy.log ]; then
-              circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
-              echo "Shorebird deploy logs stored successfully"
-            else
-              echo "No shorebird_deploy.log file found to store"
-            fi
+            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
 
       - store_artifacts:
           path: build/app/outputs/bundle/release/app-release.aab
