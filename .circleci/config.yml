@@ -67,31 +67,13 @@ jobs:
             # Create log file for Shorebird operations
             SHOREBIRD_LOG="shorebird_deploy.log"
             echo "🚀 Starting Shorebird Intelligent Deploy - $(date)" | tee -a "$SHOREBIRD_LOG"
-            
-            # Deliberately exit to test artifact saving
-            echo "🧪 Deliberately exiting for testing artifact saving..." | tee -a "$SHOREBIRD_LOG"
-            echo "📝 Log file created at: $(pwd)/$SHOREBIRD_LOG" | tee -a "$SHOREBIRD_LOG"
-            echo "📊 Log file size: $(wc -c < "$SHOREBIRD_LOG" 2>/dev/null || echo '0') bytes" | tee -a "$SHOREBIRD_LOG"
-            exit 1
-            
-            # Set up 60-second timeout mechanism
-            BUILD_START_TIME=$(date +%s)
+
+            # Add lightweight periodic output to prevent timeout
             (while true; do 
-              BUILD_DURATION=$(( $(date +%s) - BUILD_START_TIME ))
-              if [ $BUILD_DURATION -gt 60 ]; then
-                echo "❌ ERROR: Shorebird build timed out after 60 seconds." | tee -a "$SHOREBIRD_LOG"
-                echo "🕐 Build duration: ${BUILD_DURATION} seconds" | tee -a "$SHOREBIRD_LOG"
-                echo "💀 Killing entire bash process due to timeout" | tee -a "$SHOREBIRD_LOG"
-                # Kill the entire process group (including the main bash process)
-                kill -TERM -$$ 2>/dev/null || true
-                sleep 2
-                kill -KILL -$$ 2>/dev/null || true
-                exit 1
-              fi
-              echo "⏳ Still working... $(date +%H:%M:%S) (${BUILD_DURATION}s elapsed)" | tee -a "$SHOREBIRD_LOG"
+              echo "⏳ Still working... $(date +%H:%M:%S)" | tee -a "$SHOREBIRD_LOG"
               # Simplified resource monitoring (less overhead)
               echo "📊 Load: $(cat /proc/loadavg | cut -d' ' -f1-3 2>/dev/null || echo 'N/A')" | tee -a "$SHOREBIRD_LOG"
-              sleep 10
+              sleep 90
             done) &
             KEEPALIVE_PID=$!
 
@@ -157,40 +139,9 @@ jobs:
 
               # Step 5: Analyze the release command's output
               if echo "$RELEASE_OUTPUT" | grep -q "✅ Published Release"; then
-                # CASE 2a: Release successful. Trigger Fastlane deployment.
+                # CASE 2a: Release successful.
                 echo "✅ Successfully published new release for version $VERSION." | tee -a "$SHOREBIRD_LOG"
-                echo "🚀 Preparing to upload AAB to Play Store..." | tee -a "$SHOREBIRD_LOG"
                 echo "export DEPLOYMENT_TYPE=0" >> $BASH_ENV
-
-                # --- START: Conditional Fastlane Deployment ---
-                mkdir -p fastlane
-                if [[ "${CIRCLE_BRANCH}" == "prod-main" ]]; then
-                  echo "Configuring Fastlane for Production deployment"
-                  printf '%s\n' \
-                    "default_platform(:android)" \
-                    "" \
-                    "platform :android do" \
-                    "  desc 'Deploy to Google Play Store Production'" \
-                    "  lane :production do" \
-                    "    upload_to_play_store(json_key: 'google-play-key.json', package_name: ENV['ANDROID_PACKAGE_NAME'], aab: 'build/app/outputs/bundle/release/app-release.aab', track: 'production', release_status: 'draft', skip_upload_metadata: true, skip_upload_images: true, skip_upload_screenshots: true)" \
-                    "  end" \
-                    "end" > fastlane/Fastfile
-                  fastlane android production
-                else
-                  echo "Configuring Fastlane for Internal App Sharing"
-                  printf '%s\n' \
-                    "default_platform(:android)" \
-                    "" \
-                    "platform :android do" \
-                    "  desc 'Upload to Internal App Sharing'" \
-                    "  lane :internal_sharing do" \
-                    "    result = upload_to_play_store_internal_app_sharing(json_key: 'google-play-key.json', package_name: ENV['ANDROID_PACKAGE_NAME'], aab: 'build/app/outputs/bundle/release/app-release.aab')" \
-                    "    File.write(\"../sharing_url.txt\", result) if result && result.start_with?('https')" \
-                    "  end" \
-                    "end" > fastlane/Fastfile
-                  fastlane android internal_sharing
-                fi
-                # --- END: Conditional Fastlane Deployment ---
                 echo "🎉 Shorebird release completed successfully - $(date)" | tee -a "$SHOREBIRD_LOG"
                 exit 0
               elif echo "$RELEASE_OUTPUT" | grep -q "existing android release for version"; then
@@ -218,34 +169,9 @@ jobs:
             kill $KEEPALIVE_PID 2>/dev/null || true
 
       - run:
-          name: Store Shorebird logs on failure
-          when: on_fail
+          name: Store Shorebird artifacts on failure
           command: |
-            echo "🔍 Shorebird step failed - checking for log file..."
-            echo "📁 Current directory: $(pwd)"
-            echo "📋 Directory contents:"
-            ls -la
-            
-            if [ -f "shorebird_deploy.log" ]; then
-              echo "✅ Found shorebird_deploy.log"
-              echo "📊 Log file size: $(wc -c < shorebird_deploy.log) bytes"
-              echo "📄 First few lines of log:"
-              head -5 shorebird_deploy.log
-              echo "🔄 Storing artifact for debugging..."
-              # Copy to a location that will be stored as artifact
-              cp shorebird_deploy.log ./shorebird_failure_log.log
-              echo "✅ Log file prepared for artifact storage"
-            else
-              echo "❌ shorebird_deploy.log not found"
-              echo "🔍 Looking for any .log files:"
-              find . -name "*.log" -type f 2>/dev/null || echo "No .log files found"
-              echo "🔍 Looking for files containing 'shorebird':"
-              find . -name "*shorebird*" -type f 2>/dev/null || echo "No shorebird files found"
-            fi
-
-      - store_artifacts:
-          path: shorebird_failure_log.log
-          destination: shorebird-failure-logs
+            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
 
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
