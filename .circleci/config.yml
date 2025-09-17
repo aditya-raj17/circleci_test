@@ -69,7 +69,7 @@ jobs:
             echo "🚀 Starting Shorebird Intelligent Deploy - $(date)" | tee -a "$SHOREBIRD_LOG"
 
             echo "Early exit"
-            exit 0
+            exit 1
 
             # Add lightweight periodic output to prevent timeout
             (while true; do 
