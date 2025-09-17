@@ -61,8 +61,21 @@ jobs:
           name: Shorebird Intelligent Deploy (Patch or Release)
           command: |
             #!/bin/bash
-            timeout -s KILL 40s bash <<'EOF'
             set -e # Exit immediately if a command exits with a non-zero status.
+            BUID_START_TIME=$(date +%s)
+            (while true; do 
+              BUILD_DURATION=$(( $(date +%s) - BUID_START_TIME ))
+              if [ $BUILD_DURATION -gt 40 ]; then
+                echo "❌ ERROR: Shorebird build timed out after 40 seconds." | tee -a shorebird_deploy.log
+                kill $KEEPALIVE_PID
+                exit 1
+              fi
+              echo "⏳ Still working... $(date +%H:%M:%S)" | tee -a shorebird_deploy.log
+              # Simplified resource monitoring (less overhead)
+              echo "📊 Load: $(cat /proc/loadavg | cut -d' ' -f1-3 2>/dev/null || echo 'N/A')" | tee -a "$SHOREBIRD_LOG"
+              sleep 90
+            done) &
+            KEEPALIVE_PID=$!
 
             # Redirect all output to shorebird_deploy.log while also displaying on console
             exec > >(tee -a shorebird_deploy.log) 2>&1
