@@ -11,8 +11,8 @@ jobs:
       # Restore combined cache for Flutter and Gradle dependencies
       - restore_cache:
           keys:
-            - flutter-deps-v1-{{ checksum "pubspec.lock" }}
-            - flutter-deps-v1-
+            - flutter-deps-v2-{{ checksum "pubspec.lock" }}
+            - flutter-deps-v2-
             
       - run:
           name: "Creating Env file"
@@ -179,7 +179,7 @@ jobs:
           paths:
             - ~/.pub-cache
             - ~/.gradle
-          key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
+          key: flutter-deps-v2-{{ checksum "pubspec.lock" }}
           when: always
 
 
