@@ -174,12 +174,6 @@ jobs:
           command: |
             cat shorebird_deploy.log
 
-      - run:
-          name: Store Shorebird artifacts on failure
-          when: always
-          command: |
-            circleci-agent store_artifacts shorebird_deploy.log shorebird-logs
-
       # Save combined cache for both Flutter and Gradle dependencies
       - save_cache:
           paths:
