@@ -11,8 +11,8 @@ jobs:
       # Restore combined cache for Flutter and Gradle dependencies
       - restore_cache:
           keys:
-            - flutter-deps-v2-{{ checksum "pubspec.lock" }}
-            - flutter-deps-v2-
+            - flutter-deps-v1-{{ checksum "pubspec.lock" }}
+            - flutter-deps-v1-
             
       - run:
           name: "Creating Env file"
@@ -132,7 +132,7 @@ jobs:
               echo -e "\nℹ️ No existing release found for $VERSION. Attempting to create a new release..." | tee -a "$SHOREBIRD_LOG"
               echo "🕐 Release start time: $(date)" | tee -a "$SHOREBIRD_LOG"
               RELEASE_START_TIME=$(date +%s)
-              RELEASE_OUTPUT=$(shorebird release android --flutter-version=3.24.2 --no-confirm 2>&1 | tee -a "$SHOREBIRD_LOG" || true)
+              RELEASE_OUTPUT=$(shorebird release android --flutter-version=3.35.4 --no-confirm 2>&1 | tee -a "$SHOREBIRD_LOG" || true)
               RELEASE_END_TIME=$(date +%s)
               RELEASE_DURATION=$((RELEASE_END_TIME - RELEASE_START_TIME))
               echo "⏱️ Release creation took: ${RELEASE_DURATION} seconds" | tee -a "$SHOREBIRD_LOG"
@@ -179,7 +179,7 @@ jobs:
           paths:
             - ~/.pub-cache
             - ~/.gradle
-          key: flutter-deps-v2-{{ checksum "pubspec.lock" }}
+          key: flutter-deps-v1-{{ checksum "pubspec.lock" }}
           when: always
 
 
